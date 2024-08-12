@@ -1,18 +1,20 @@
 
-## Amazon and Flipkart design - High Level Design
+# Amazon and Flipkart design - High Level Design
 
-Func Requirement:
+### Func Requirement:
 - Cart/Wishlist
 - Checkout
 - Search
 - View order
 
-Non func requirement
+### Non Func Requirement:
 - Low latency
 - High availability
 - High consumption
 
 ![Amzn-1.png](..%2Fimages%2FAmzn-1.png)
+
+![Amzn-2.png](..%2Fimages%2FAmzn-2.png)
 
 - InBound Service - It talks to various service on the supplier front. It gets data such as supplier
   wants to onboard new data. It puts various messages in kafka which various service consumes to onboard 
@@ -44,11 +46,26 @@ Non func requirement
 
 
 - Order taking service - It is responsible for taking order by user. It uses MySQL db.
-  Why MySql - As User/Item/Order has a relationship with each other, it is important to have atomicity ie. there is a
+  Why MySql - As User/Item/Order/Payment has a relationship with each other, it is important to have atomicity ie. there is a
   transaction in which upsert operation is required in each tables. If any operation fails, then all every other operation
-  is rolled back.
+  is rolled back. When an order is placed, an order id is generated and order id and time is stored in [Redis].
+  Eg: Redis - Order1 | 10:00 | CREATED
+- Inventory service - Is responsible for blocking item for customer.  
+- Payment service - It is responsible for payment. 
+  Few scenarios: 
+  1. If payment is successful, then delete from REdis and update Order taking DB and sends event into Kafka.
+  2. If payment is fails, then delete from Redis --> update count + 1 in inventory & update order as failed in OTS DB.
+  3. If redis record expires, then increase count in inventory and mark order as failed in order taking service DB.
+  All the events are sent to Kafka for order processing.
+- Order Processing service - It have details of all the order ie. where is status of order - Deleivered etc.
+- Historical Order service - Through this, we can get details of historical orders. And it inserts data into Cassandra.
+- Notification service - Used to notify user about the order etc.
 
 ## Database
 - MongoDb [item] db - Unstructured db is required as diff product have diff parameters. Such as 
   for TV - size,LED etc || Tshirt - color, size, collar etc.
 - MySQL[Cart/Wishlist] DB - Data related to wishlist and cart items are stored in structured DB.
+
+
+### Reference
+https://www.youtube.com/watch?v=EpASu_1dUdE&list=PLhgw50vUymyckXl3D1IlXoVl94wknJfUC&index=1
